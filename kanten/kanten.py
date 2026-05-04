@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from scipy import signal
 
 
 def processImage(frame):
@@ -19,9 +20,30 @@ def processImage(frame):
     gx = cv2.Sobel(gray_frame_norm, cv2.CV_32F, 1, 0, ksize = 3) / 4  # 1 to 0 because we want the gradient in x direction, ksize is the size of the kernel. y direction is 0 because we don't want the gradient in y direction
     # The division by 4 is necessary to scale the gradient values to be between -1 and +1, since the maximum possible value of the Sobel operator with a kernel size of 3 is 4.
     gy = cv2.Sobel(gray_frame_norm, cv2.CV_32F, 0, 1, ksize = 3) / 4 # 0 to 1 because we want the gradient in y direction, ksize is the size of the kernel. x direction is 0 because we don't want the gradient in x direction
-    grad = np.sqrt(gx ** 2 + gy ** 2) / np.sqrt(2)
+    # grad = np.sqrt(gx ** 2 + gy ** 2) / np.sqrt(2)
 
-    return gx, gy, grad
+    # Den Strukturtensor M vorbereiten
+    Ix2 = gx ** 2
+    Iy2 = gy ** 2
+    Ix_Iy = gx * gy
+    
+    N = 7
+    Ix2  = signal.convolve2d(Ix2, np.ones((N,N))) / (N**2)
+    Iy2  = signal.convolve2d(Iy2, np.ones((N,N))) / (N**2)
+    Ix_Iy = signal.convolve2d(Ix_Iy, np.ones((N,N))) / (N**2)
+
+    kappa = 0.04
+    det_M = Ix2 * Iy2 - Ix_Iy ** 2
+    trace = Ix2  + Iy2
+    strength = det_M - kappa * trace ** 2 
+    strength /= np.max(strength)
+
+    corners = np.zeros_like(strength)
+    corners[strength > 0.1] = 1.0
+
+    cv2.imshow("Harris Corner Strength", strength)
+    cv2.imshow("Harris Corners", corners)
+   
 
 
 def displayImage(gx, gy, grad):
@@ -44,16 +66,17 @@ def mainLoop():
     The main loop of this program
     """
     # TODO: Open the default camera
+    cap = cv2.VideoCapture(0)
 
     while True:
         # TODO: Read next image from camera 
-        cap = cv2.VideoCapture(0)
+        
         ret, frame = cap.read()
         # TODO: Call processImage to retrieve properly scaled gradient direction and magnitude images
-        gx, gy, grad = processImage(frame= frame)
+        processImage(frame= frame)
 
         # TODO: Call displayImage to display the images
-        displayImage(gx, gy, grad)
+        # displayImage(gx, gy, grad)
         # TODO: Also display the original camera image in color
         cv2.imshow('Camera', frame)
         # TODO: Break the infinite loop when the users presses ESCAPE (27)
